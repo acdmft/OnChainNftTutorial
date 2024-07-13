@@ -4,11 +4,13 @@ import { NftCollection } from '../wrappers/NftCollection';
 import { buildCollectionContentCell, setItemContentCell } from '../scripts/nftContent/onChain';
 import '@ton/test-utils';
 import { compile } from '@ton/blueprint';
+import { flattenTransaction } from '@ton/test-utils';
 
 describe('NftCollection', () => {
     let collectionCode: Cell;
     let item: Cell;
     let collectionContent: Cell;
+    let nftItemContent: Cell;
 
     beforeAll(async () => {
         collectionCode = await compile('NftCollection');
@@ -26,6 +28,11 @@ describe('NftCollection', () => {
             name: "OnChain collection",
             description: "Collection of items with onChain metadata",
             image: "https://raw.githubusercontent.com/Cosmodude/Nexton/main/Nexton_Logo.jpg"
+        });
+        nftItemContent = setItemContentCell({
+            name: "OnChain",
+            description: "Holds onchain metadata",
+            image: "https://raw.githubusercontent.com/Cosmodude/Nexton/main/Nexton_Logo.jpg",
         });
 
         nftCollection = blockchain.openContract(NftCollection.createFromConfig({
@@ -52,7 +59,7 @@ describe('NftCollection', () => {
         });
     });
 
-    it('should get collection data after it\'s been deployed', async () => {
+    it('should get collection data after collection has been deployed', async () => {
         const collection_data = await nftCollection.getCollectionData();
         // check next_item_index
         expect(collection_data).toHaveProperty("nextItemId", BigInt(0));
@@ -61,4 +68,61 @@ describe('NftCollection', () => {
         // check owner address 
         expect(collection_data.ownerAddress.toString()).toBe(collectionOwner.address.toString());
     });
+
+    it ('should mint NFT item if requested by collection owner', async () => {
+        
+        const nftOwner = await blockchain.treasury('NewNFTOwner');
+        const mintResult = await nftCollection.sendMintNft(collectionOwner.getSender(), {
+            value: toNano("0.02"),
+            queryId: Math.floor(Math.random() * 10000),
+            amount: toNano("0.014"),
+            itemIndex: 0,
+            itemOwnerAddress: nftOwner.getSender().address!!,
+            itemContent: nftItemContent
+        });
+        // const arr = mintResult.transactions.map(tx => flattenTransaction(tx));
+        // console.log(arr);
+        // check that tx to the collection address is successful
+        expect(mintResult.transactions).toHaveTransaction({
+            to: nftCollection.address,
+            op: 1,
+            value: toNano("0.02"),
+            success: true
+        })
+        // check that getItemAddressByIndex() returns nft item address
+        const nftItemAddr = await nftCollection.getItemAddressByIndex({ type: 'int', value: BigInt(0) }); 
+        // check that tx to the nft item address is successful
+        expect(mintResult.transactions).toHaveTransaction({
+            from: nftCollection.address,
+            to: nftItemAddr,
+            value: toNano("0.014"),
+            success: true
+        })
+        // check that next item index has been incremented 
+        const collection_data = await nftCollection.getCollectionData();
+        expect(collection_data.nextItemId).toBe(BigInt(1));
+    });
+
+    it ('should return 401 error if mint item was requested by non-owner', async () => {
+        const nonOwnerWallet = await blockchain.treasury("non-owner");
+        const nftOwner = await blockchain.treasury('NewNFTOwner');
+
+        const result = await nftCollection.sendMintNft(nonOwnerWallet.getSender(), {
+            value: toNano("0.02"),
+            queryId: Math.floor(Math.random() * 10000),
+            amount: toNano("0.014"),
+            itemIndex: 0,
+            itemOwnerAddress: nftOwner.getSender().address!!,
+            itemContent: nftItemContent
+        });
+        // check that tx failed with 401 exit code
+        expect(result.transactions).toHaveTransaction({
+            to: nftCollection.address,
+            value: toNano("0.02"),
+            exitCode: 401,
+            op: 1,
+            success: false
+        });
+    })
+
 });
