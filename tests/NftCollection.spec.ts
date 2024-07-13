@@ -6,11 +6,12 @@ import '@ton/test-utils';
 import { compile } from '@ton/blueprint';
 
 describe('NftCollection', () => {
-    let code: Cell;
+    let collectionCode: Cell;
     let item: Cell;
+    let collectionContent: Cell;
 
     beforeAll(async () => {
-        code = await compile('NftCollection');
+        collectionCode = await compile('NftCollection');
         item = await compile('NftItem');
     });
 
@@ -21,22 +22,23 @@ describe('NftCollection', () => {
     beforeEach(async () => {
         blockchain = await Blockchain.create();
         collectionOwner = await blockchain.treasury("ownerWallet");
+        collectionContent = buildCollectionContentCell({
+            name: "OnChain collection",
+            description: "Collection of items with onChain metadata",
+            image: "https://raw.githubusercontent.com/Cosmodude/Nexton/main/Nexton_Logo.jpg"
+        });
 
         nftCollection = blockchain.openContract(NftCollection.createFromConfig({
             ownerAddress: collectionOwner.address,
             nextItemIndex: 0,
-            collectionContent: buildCollectionContentCell({
-                name: "OnChain collection",
-                description: "Collection of items with onChain metadata",
-                image: "https://raw.githubusercontent.com/Cosmodude/Nexton/main/Nexton_Logo.jpg"
-            }),
+            collectionContent: collectionContent,
             nftItemCode: item,
             royaltyParams:  {
                 royaltyFactor: Math.floor(Math.random() * 500), 
                 royaltyBase: 1000,
                 royaltyAddress: collectionOwner.getSender().address as Address
             }
-        }, code));
+        },collectionCode));
 
         const deployer = await blockchain.treasury('deployer');
 
@@ -50,8 +52,13 @@ describe('NftCollection', () => {
         });
     });
 
-    it('should deploy', async () => {
-        // the check is done inside beforeEach
-        // blockchain and nftCollection are ready to use
+    it('should get collection data after it\'s been deployed', async () => {
+        const collection_data = await nftCollection.getCollectionData();
+        // check next_item_index
+        expect(collection_data).toHaveProperty("nextItemId", BigInt(0));
+        // check collection content 
+        expect(collection_data.collectionContent).toEqualCell(collectionContent);
+        // check owner address 
+        expect(collection_data.ownerAddress.toString()).toBe(collectionOwner.address.toString());
     });
 });
