@@ -5,6 +5,8 @@ import { buildCollectionContentCell, setItemContentCell } from '../scripts/nftCo
 import '@ton/test-utils';
 import { compile } from '@ton/blueprint';
 import { flattenTransaction } from '@ton/test-utils';
+import * as dotenv from 'dotenv';
+dotenv.config();
 
 describe('NftCollection', () => {
     let collectionCode: Cell;
@@ -25,9 +27,9 @@ describe('NftCollection', () => {
         blockchain = await Blockchain.create();
         collectionOwner = await blockchain.treasury("ownerWallet");
         collectionContent = buildCollectionContentCell({
-            name: "OnChain collection",
-            description: "Collection of items with onChain metadata",
-            image: "https://raw.githubusercontent.com/Cosmodude/Nexton/main/Nexton_Logo.jpg"
+            name: process.env.COLLECTION_NAME!,
+            description: process.env.COLLECTION_DESCRIPTION!,
+            image: process.env.COLLECTION_IMAGE!
         });
         nftItemContent = setItemContentCell({
             name: "OnChain",
@@ -41,8 +43,8 @@ describe('NftCollection', () => {
             collectionContent: collectionContent,
             nftItemCode: item,
             royaltyParams:  {
-                royaltyFactor: Math.floor(Math.random() * 500), 
-                royaltyBase: 1000,
+                royaltyFactor: parseInt(process.env.COLLECTION_ROYALTY_PERCENT!), //Math.floor(Math.random() * 500), 
+                royaltyBase: 100, //1000,
                 royaltyAddress: collectionOwner.getSender().address as Address
             }
         },collectionCode));
@@ -71,8 +73,8 @@ describe('NftCollection', () => {
 
     it('should get roylty params after collection has been deployed', async () => {
         const royalty_params = await nftCollection.getRoyaltyParams();
-        console.log('royalties ', royalty_params);
-        expect(royalty_params.royaltyBase).toBe(BigInt(1000));
+        expect(royalty_params.royaltyFactor).toBe(BigInt(parseInt(process.env.COLLECTION_ROYALTY_PERCENT!)));
+        expect(royalty_params.royaltyBase).toBe(BigInt(100));
         expect(royalty_params.royaltyAddress.toString()).toBe(collectionOwner.address.toString());
     });
 
