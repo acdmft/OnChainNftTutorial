@@ -69,6 +69,13 @@ describe('NftCollection', () => {
         expect(collection_data.ownerAddress.toString()).toBe(collectionOwner.address.toString());
     });
 
+    it('should get roylty params after collection has been deployed', async () => {
+        const royalty_params = await nftCollection.getRoyaltyParams();
+        console.log('royalties ', royalty_params);
+        expect(royalty_params.royaltyBase).toBe(BigInt(1000));
+        expect(royalty_params.royaltyAddress.toString()).toBe(collectionOwner.address.toString());
+    });
+
     it ('should mint NFT item if requested by collection owner', async () => {
         
         const nftOwner = await blockchain.treasury('NewNFTOwner');
